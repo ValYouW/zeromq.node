@@ -1222,7 +1222,11 @@ namespace zmq {
   NAN_METHOD(Socket::Close) {
     NanScope();
     GET_SOCKET(args);
-    socket->Close();
+    try {
+      socket->Close();
+    } catch(const std::exception e) {
+      return NanThrowError(e.what());
+    }
     NanReturnUndefined();
   }
 
