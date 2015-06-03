@@ -236,7 +236,13 @@ namespace zmq {
         return NanThrowRangeError("io_threads must be a positive number");
       }
     }
-    Context *context = new Context(io_threads);
+    
+    Context *context;
+    try {
+      context = new Context(io_threads);
+    } catch(const std::exception e) {
+      return NanThrowError(e.what());
+    }
     context->Wrap(args.This());
     NanReturnValue(args.This());
   }
