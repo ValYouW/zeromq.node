@@ -1257,7 +1257,7 @@ namespace zmq {
     try {
       socket->Close();
     } catch(const std::exception e) {
-      return NanThrowError(e.what());
+      socket->RaiseError(e.what());
     }
     NanReturnUndefined();
   }
