@@ -104,6 +104,7 @@ namespace zmq {
       static void Initialize(v8::Handle<v8::Object> target);
       virtual ~Socket();
       void CallbackIfReady();
+      void RaiseError(const char *error_msg);
 #if ZMQ_CAN_MONITOR
       void MonitorEvent(uint16_t event_id, int32_t event_value, char *endpoint);
       void MonitorError(const char *error_msg);
@@ -175,6 +176,7 @@ namespace zmq {
   };
 
   Persistent<String> callback_symbol;
+  Persistent<String> error_symbol;
 #if ZMQ_CAN_MONITOR
   Persistent<String> monitor_symbol;
   Persistent<String> monitor_error;
@@ -342,6 +344,7 @@ namespace zmq {
     target->Set(NanNew("SocketBinding"), t->GetFunction());
 
     NanAssignPersistent(callback_symbol, NanNew("onReady"));
+    NanAssignPersistent(error_symbol, NanNew("onError"));
   }
 
   Socket::~Socket() {
@@ -369,6 +372,21 @@ namespace zmq {
     NanReturnValue(args.This());
   }
 
+  void
+  Socket::RaiseError(const char *error_msg) {
+    NanScope();
+
+    Local<Value> callback_v = NanObjectWrapHandle(this)->Get(NanNew(error_symbol));
+    if (!callback_v->IsFunction()) {
+      return;
+    }
+
+    Local<Value> argv[1];
+    argv[0] = NanNew<String>(error_msg);
+
+    NanMakeCallback(NanObjectWrapHandle(this), callback_v.As<Function>(), 1, argv);
+  }
+
   bool
   Socket::IsReady() {
     zmq_pollitem_t item = {socket_, 0, ZMQ_POLLIN, 0};
@@ -385,14 +403,28 @@ namespace zmq {
         break;
       }
     }
+
     return item.revents & item.events;
   }
 
   void
   Socket::CallbackIfReady() {
-    if (this->IsReady()) {
-      NanScope();
+    bool ready;
+    const char* error = NULL;
+    try {
+      ready = this->IsReady();
+    } catch(const std::exception e) {
+      error = e.what();
+    }
 
+    // If error stop
+    if (error != NULL) {
+      this->RaiseError(error);
+      return;
+    }
+
+    if (ready) {
+      NanScope();
       Local<Value> callback_v = NanObjectWrapHandle(this)->Get(NanNew(callback_symbol));
       if (!callback_v->IsFunction()) {
         return;
